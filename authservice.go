@@ -1,4 +1,4 @@
-package authservice
+package main
 
 import (
 	"errors"
@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"reflect"
+	"time"
 )
 
 func main() {
@@ -85,27 +86,7 @@ func authUser(c echo.Context) error {
 		return c.NoContent(http.StatusUnauthorized)
 	}
 
-	p, err := ioutil.ReadFile("/home/tjp/.ssh/jwt_key")
-	if err != nil {
-		c.Logger().Printf("err: %v", err)
-		return c.NoContent(http.StatusInternalServerError)
-	}
-
-	t := jwt.New(jwt.SigningMethodRS512)
-	claims, ok := t.Claims.(jwt.MapClaims)
-	if !ok {
-		c.Logger().Printf("Assertion t.Claims.(jwt.MapClaims) failed.")
-		return c.NoContent(http.StatusInternalServerError)
-	}
-	claims["sub"] = "TJP"
-
-	key, err := jwt.ParseRSAPrivateKeyFromPEM(p)
-	if err != nil {
-		c.Logger().Print(err)
-		return c.NoContent(http.StatusInternalServerError)
-	}
-
-	token, err := t.SignedString(key)
+	token, err := generateJwt(c.FormValue("UserID"))
 	if err != nil {
 		c.Logger().Print(err)
 		return c.NoContent(http.StatusInternalServerError)
@@ -167,4 +148,37 @@ func getResourceFields(resource reflect.Value, c echo.Context) (rFields []string
 	}
 
 	return rFields
+}
+
+// generateJwt uses a requests UserID and a []byte secret to generate a JSON web token.
+func generateJwt(UserID string) (string, error) {
+
+	p, err := ioutil.ReadFile("/home/tjp/.ssh/jwt_private.pem")
+	if err != nil {
+		return "", err
+	}
+
+	t := jwt.New(jwt.SigningMethodRS256)
+	claims, ok := t.Claims.(jwt.MapClaims)
+	if !ok {
+		return "", err
+	}
+
+	claims["iss"] = "Auth-Service"
+	claims["sub"] = UserID
+	claims["aud"] = "Moment-Service"
+	claims["exp"] = time.Now().UTC().AddDate(0, 0, 7).Unix()
+	claims["iat"] = time.Now().UTC().Unix()
+
+	key, err := jwt.ParseRSAPrivateKeyFromPEM(p)
+	if err != nil {
+		return "", err
+	}
+
+	token, err := t.SignedString(key)
+	if err != nil {
+		return "", err
+	}
+
+	return token, nil
 }

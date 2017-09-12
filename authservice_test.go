@@ -1,7 +1,10 @@
-package authservice
+package main
 
 import (
+	"errors"
+	"github.com/dgrijalva/jwt-go"
 	"github.com/stretchr/testify/assert"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
@@ -207,4 +210,42 @@ func Test_APICall_authUser_Fail_InvalidUserPasswordMatch(t *testing.T) {
 	// Header
 	jwt := resp.Header.Get("jwt")
 	assert.Empty(t, jwt)
+}
+
+func Test_generateJwt_pass(t *testing.T) {
+	UserID := "tjp"
+	tokenString, err := generateJwt(UserID)
+	if err != nil {
+		t.Error(err)
+	}
+
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
+			return nil, errors.New("jwt.Token[\"alg\") = %v instead of RS256")
+		}
+
+		p, err := ioutil.ReadFile("/home/tjp/.ssh/jwt_public.pem")
+		if err != nil {
+			return nil, err
+		}
+
+		key, err := jwt.ParseRSAPublicKeyFromPEM(p)
+		if err != nil {
+			return nil, err
+		}
+
+		return key, nil
+	})
+	if err != nil {
+		t.Error(err)
+	}
+
+	assert.True(t, token.Valid)
+
+	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+		assert.Equal(t, UserID, claims["sub"])
+	} else {
+		t.Error("token.Claims.(jwt.MapClaims) assertion failed.")
+	}
+
 }
