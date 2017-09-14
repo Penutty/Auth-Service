@@ -19,19 +19,24 @@ func main() {
 	e.Logger.Fatal(e.Start(":8080"))
 }
 
+// CreateUserReq represents the fields and datatypes
+// that are required by the createUser endpoint.
+type createUserReq struct {
+	authUserReq
+	Email string
+}
+
 // createUser is a POST endpoint that accepts
 // Content-Type: [application/json; charset=UTF-8]
 // Body: {
 //			UserID: UserID
 //			Email: Email
-//			FirstName: FirstName
-//			LastName: LastName
 //			Password: Password
 //		 }
 // on success returns
 // Status: 201 - Created
 func createUser(c echo.Context) error {
-	resource := reflect.ValueOf(new(user.User)).Elem()
+	resource := reflect.ValueOf(new(createUserReq)).Elem()
 	err := validateContext(resource, c)
 	if err != nil {
 		c.Logger().Printf("main.ValidateContext Failed with err: %v", err)
@@ -43,9 +48,7 @@ func createUser(c echo.Context) error {
 			UserID:   c.FormValue("UserID"),
 			Password: c.FormValue("Password"),
 		},
-		Email:     c.FormValue("Email"),
-		FirstName: c.FormValue("FirstName"),
-		LastName:  c.FormValue("LastName"),
+		Email: c.FormValue("Email"),
 	}
 
 	status := http.StatusCreated
@@ -62,6 +65,13 @@ func createUser(c echo.Context) error {
 	return c.NoContent(status)
 }
 
+// AuthCredentialsReq represents the fields and datatypes
+// that are required by the authUser endpoint
+type authUserReq struct {
+	UserID   string
+	Password string
+}
+
 // authUser is a POST endpoint that accepts
 // Body: {
 //			UserID: UserID
@@ -70,7 +80,7 @@ func createUser(c echo.Context) error {
 // on success returns
 // Status: 200
 func authUser(c echo.Context) error {
-	resource := reflect.ValueOf(new(user.AuthCredentials)).Elem()
+	resource := reflect.ValueOf(new(authUserReq)).Elem()
 	if err := validateContext(resource, c); err != nil {
 		c.Logger().Printf("main.ValidateContext Failed with err: %v", err)
 		return c.NoContent(http.StatusBadRequest)

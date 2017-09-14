@@ -1,5 +1,5 @@
-// Package resource is dedicated to managing this API's resources.
-// The User resource definition and methods are below.
+// Package user is dedicated to reading and writing user data in Auth-Db.
+// The User and AuthCredentials resource definitions and methods are below.
 package user
 
 import (
@@ -16,17 +16,7 @@ var UserObjectIsEmpty = errors.New("User is empty.")
 var UniquifierIsEmpty = errors.New("User.UserID AND User.Email is empty.")
 var UserIDIsEmpty = errors.New("User.UserID AND User.Email is empty.")
 var UserEmailIsEmpty = errors.New("User.Email is empty.")
-var UserFirstNameIsEmpty = errors.New("User.FirstName is empty.")
-var UserLastNameIsEmpty = errors.New("User.LastName is empty.")
 var UserPasswordIsEmpty = errors.New("User.Password is empty.")
-
-// User references a unique person represented by a Authentication Credentials and general information.
-type User struct {
-	AuthCredentials
-	Email     string
-	FirstName string
-	LastName  string
-}
 
 // CreateUser checks to see if a user exists and creates it if not.
 // If the user already exists and err is returned.
@@ -63,6 +53,12 @@ func AuthUser(aC *AuthCredentials) (err error) {
 // They are utilized by the exported methods.
 //
 
+// User references a unique person represented by a Authentication Credentials and general information.
+type User struct {
+	AuthCredentials
+	Email string
+}
+
 // Select uses a UserID OR Email to SELECT the corresponding User data
 func (u *User) get() error {
 
@@ -71,8 +67,6 @@ func (u *User) get() error {
 
 	query := `SELECT UserID,
 					 Email, 
-				  	 FirstName,
-					 LastName, 
 					 Password
 			  FROM [User].[Users]`
 	var predicate string
@@ -87,19 +81,19 @@ func (u *User) get() error {
 		return UniquifierIsEmpty
 	}
 
-	return db.QueryRow(query, predicate).Scan(&u.UserID, &u.Email, &u.FirstName, &u.LastName, &u.Password)
+	return db.QueryRow(query, predicate).Scan(&u.UserID, &u.Email, &u.Password)
 }
 
-// create INSERTs a new User.UserID, User.Email, User.FirstName, User.LastName, and User.Password data combination.
+// create INSERTs a new User.UserID, User.Email, and User.Password data combination.
 func (u *User) create() (sql.Result, error) {
 
 	db := openDbConn()
 	defer db.Close()
 
-	query := `INSERT INTO [User].[Users] (UserID, Email, FirstName, LastName, Password)
-			  VALUES (?, ?, ?, ?, ?)`
+	query := `INSERT INTO [User].[Users] (UserID, Email, Password)
+			  VALUES (?, ?, ?)`
 
-	res, err := db.Exec(query, u.UserID, u.Email, u.FirstName, u.LastName, u.Password)
+	res, err := db.Exec(query, u.UserID, u.Email, u.Password)
 	return res, err
 }
 
@@ -129,36 +123,6 @@ func (u *User) setUserEmail() {
 			  WHERE UserID = ?`
 
 	if _, err := db.Exec(query, u.Email, u.UserID); err != nil {
-		log.Fatal(err)
-	}
-}
-
-// SetUserFirstName UPDATEs the User.FirstName value associated with the User.UserID
-func (u *User) setUserFirstName() {
-
-	db := openDbConn()
-	defer db.Close()
-
-	query := `UPDATE [User].[Users]
-			  SET FirstName = ?
-			  WHERE UserID = ?`
-
-	if _, err := db.Exec(query, u.FirstName, u.UserID); err != nil {
-		log.Fatal(err)
-	}
-}
-
-// SetUserLastName UPDATEs the User.LastName value associated with the User.UserID
-func (u *User) setUserLastName() {
-
-	db := openDbConn()
-	defer db.Close()
-
-	query := `UPDATE [User].[Users]
-			  SET LastName = ?
-			  WHERE UserID = ?`
-
-	if _, err := db.Exec(query, u.LastName, u.UserID); err != nil {
 		log.Fatal(err)
 	}
 }

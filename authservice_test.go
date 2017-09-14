@@ -2,7 +2,9 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"github.com/dgrijalva/jwt-go"
+	"github.com/penutty/authservice/user"
 	"github.com/stretchr/testify/assert"
 	"io/ioutil"
 	"net/http"
@@ -12,20 +14,40 @@ import (
 	"testutil"
 )
 
-func TestMain(m *testing.M) {
-	// Create http.Client or http.Transport if necessary
+const testingUserID = "User_Test"
+const testingEmail = "Email_Test@Email.com"
+const testingPassword = "Password_Test"
 
-	os.Exit(m.Run())
+func TestMain(m *testing.M) {
+
+	// Create Users for testing
+	u := &user.User{
+		AuthCredentials: user.AuthCredentials{
+			UserID:   testingUserID,
+			Password: testingPassword},
+		Email: testingEmail,
+	}
+	err := user.CreateUser(u)
+	if err != nil {
+		fmt.Printf("err = %v", err)
+		return
+	}
+
+	// Execute testing functions
+	call := m.Run()
+
+	// Cleanup
+	testutil.DeleteUser(testingUserID)
+
+	os.Exit(call)
 }
 
 func Test_APICall_createUser_UserDoesNotExist(t *testing.T) {
 	resp, err := http.PostForm("http://localhost:8080/user/TJP/create",
 		url.Values{
-			"UserID":    {"TJP"},
-			"Email":     {"TJP@email.com"},
-			"FirstName": {"James"},
-			"LastName":  {"Perry"},
-			"Password":  {"password"}})
+			"UserID":   {"TJP"},
+			"Email":    {"TJP@email.com"},
+			"Password": {"password"}})
 	if err != nil {
 		t.Error(err)
 	}
@@ -41,30 +63,20 @@ func Test_APICall_createUser_UserDoesNotExist(t *testing.T) {
 	assert.Empty(t, res)
 
 	// Cleanup
-	_, _ = testutil.DeleteUser("TJP")
-}
-
-func Test_APICall_createUser_UserAlreadyExists(t *testing.T) {
-	// createUser
-	resp, err := http.PostForm("http://localhost:8080/user/TJP/create",
-		url.Values{
-			"UserID":    {"TJP"},
-			"Email":     {"TJP@email.com"},
-			"FirstName": {"James"},
-			"LastName":  {"Perry"},
-			"Password":  {"password"}})
+	_, err = testutil.DeleteUser("TJP")
 	if err != nil {
 		t.Error(err)
 	}
+}
+
+func Test_APICall_createUser_UserAlreadyExists(t *testing.T) {
 
 	// attempt to createUser that already exists
-	resp, err = http.PostForm("http://localhost:8080/user/TJP/create",
+	resp, err := http.PostForm("http://localhost:8080/user/TJP/create",
 		url.Values{
-			"UserID":    {"TJP"},
-			"Email":     {"TJP@email.com"},
-			"FirstName": {"James"},
-			"LastName":  {"Perry"},
-			"Password":  {"password"}})
+			"UserID":   {testingUserID},
+			"Email":    {testingEmail},
+			"Password": {testingPassword}})
 	if err != nil {
 		t.Error(err)
 	}
@@ -79,17 +91,13 @@ func Test_APICall_createUser_UserAlreadyExists(t *testing.T) {
 	res, err := testutil.ReadJson(resp.Body)
 	assert.Empty(t, res)
 
-	// Cleanup
-	_, _ = testutil.DeleteUser("TJP")
 }
 
 func Test_APICall_createUser_MissingCredentials(t *testing.T) {
 	resp, err := http.PostForm("http://localhost:8080/user/TJP/create",
 		url.Values{
-			"UserID":    {"TJP"},
-			"FirstName": {"James"},
-			"LastName":  {"Perry"},
-			"Password":  {"Password"}})
+			"UserID":   {"TJP"},
+			"Password": {"Password"}})
 	if err != nil {
 		t.Error(err)
 	}
@@ -108,12 +116,10 @@ func Test_APICall_createUser_MissingCredentials(t *testing.T) {
 func Test_APICall_createUser_ExtraCredentials(t *testing.T) {
 	resp, err := http.PostForm("http://localhost:8080/user/TJP/create",
 		url.Values{
-			"UserID":    {"TJP"},
-			"Email":     {"TJP@email.com"},
-			"FirstName": {"James"},
-			"LastName":  {"Perry"},
-			"Password":  {"password"},
-			"Extra":     {"Extra"}})
+			"UserID":   {"TJP"},
+			"Email":    {"TJP@email.com"},
+			"Password": {"password"},
+			"Extra":    {"Extra"}})
 	if err != nil {
 		t.Error(err)
 	}
@@ -133,8 +139,6 @@ func Test_APICall_createUser_KeyDoesNotExist(t *testing.T) {
 	resp, err := http.PostForm("http://localhost:8080/user/TJP/create",
 		url.Values{
 			"UserID":    {"TJP"},
-			"Email":     {"TJP@email.com"},
-			"FirstName": {"James"},
 			"MadeUpKey": {"Perry"},
 			"Password":  {"password"}})
 	if err != nil {
@@ -155,8 +159,8 @@ func Test_APICall_createUser_KeyDoesNotExist(t *testing.T) {
 func Test_APICall_authUser_Pass(t *testing.T) {
 	resp, err := http.PostForm("http://localhost:8080/auth",
 		url.Values{
-			"UserID":   {"user_100"},
-			"Password": {"password_100"}})
+			"UserID":   {testingUserID},
+			"Password": {testingPassword}})
 	if err != nil {
 		t.Error(err)
 	}
@@ -195,7 +199,7 @@ func Test_APICall_authUser_Fail_InvalidUser(t *testing.T) {
 func Test_APICall_authUser_Fail_InvalidUserPasswordMatch(t *testing.T) {
 	resp, err := http.PostForm("http://localhost:8080/auth",
 		url.Values{
-			"UserID":   {"user_200"},
+			"UserID":   {testingUserID},
 			"Password": {"password_100"}})
 	if err != nil {
 		t.Error(err)
