@@ -5,9 +5,12 @@ package user
 import (
 	"database/sql"
 	"errors"
-	_ "github.com/minus5/gofreetds"
+	"github.com/penutty/dba"
 	"log"
+	"os"
 )
+
+var ConnStr = os.Getenv("DatabaseConnStr")
 
 var UserAlreadyExists = errors.New("User already exists.")
 var UserCreateFailed = errors.New("User create failed.")
@@ -61,9 +64,8 @@ type User struct {
 
 // Select uses a UserID OR Email to SELECT the corresponding User data
 func (u *User) get() error {
-
-	db := openDbConn()
-	defer db.Close()
+	c := dba.OpenConn(ConnStr)
+	defer c.Db.Close()
 
 	query := `SELECT UserID,
 					 Email, 
@@ -73,7 +75,6 @@ func (u *User) get() error {
 	if len(u.UserID) > 0 {
 		query = query + ` WHERE UserID = ?`
 		predicate = u.UserID
-
 	} else if len(u.Email) > 0 {
 		query = query + ` WHERE Email = ?`
 		predicate = u.Email
@@ -81,48 +82,45 @@ func (u *User) get() error {
 		return UniquifierIsEmpty
 	}
 
-	return db.QueryRow(query, predicate).Scan(&u.UserID, &u.Email, &u.Password)
+	return c.Db.QueryRow(query, predicate).Scan(&u.UserID, &u.Email, &u.Password)
 }
 
 // create INSERTs a new User.UserID, User.Email, and User.Password data combination.
 func (u *User) create() (sql.Result, error) {
-
-	db := openDbConn()
-	defer db.Close()
+	c := dba.OpenConn(ConnStr)
+	defer c.Db.Close()
 
 	query := `INSERT INTO [User].[Users] (UserID, Email, Password)
 			  VALUES (?, ?, ?)`
 
-	res, err := db.Exec(query, u.UserID, u.Email, u.Password)
+	res, err := c.Db.Exec(query, u.UserID, u.Email, u.Password)
 	return res, err
 }
 
 // SetPassword UPDATEs a current User's User.Password
 func (u *User) setPassword() {
-
-	db := openDbConn()
-	defer db.Close()
+	c := dba.OpenConn(ConnStr)
+	defer c.Db.Close()
 
 	query := `UPDATE [User].[Users]
 			  SET Password = ?
 			  WHERE UserID = ?`
 
-	if _, err := db.Exec(query, u.Password, u.UserID); err != nil {
+	if _, err := c.Db.Exec(query, u.Password, u.UserID); err != nil {
 		log.Fatal(err)
 	}
 }
 
 // SetUserEmail UPDATEs the User.Email value associated with User.UserID
 func (u *User) setUserEmail() {
-
-	db := openDbConn()
-	defer db.Close()
+	c := dba.OpenConn(ConnStr)
+	defer c.Db.Close()
 
 	query := `UPDATE [User].[Users] 
 			  SET Email = ?
 			  WHERE UserID = ?`
 
-	if _, err := db.Exec(query, u.Email, u.UserID); err != nil {
+	if _, err := c.Db.Exec(query, u.Email, u.UserID); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -134,8 +132,8 @@ type AuthCredentials struct {
 }
 
 func (aC *AuthCredentials) validate() (err error) {
-	db := openDbConn()
-	defer db.Close()
+	c := dba.OpenConn(ConnStr)
+	defer c.Db.Close()
 
 	query := `SELECT UserID
 			  FROM [user].[Users]
@@ -150,23 +148,5 @@ func (aC *AuthCredentials) validate() (err error) {
 		return UniquifierIsEmpty
 	}
 
-	return db.QueryRow(query, params...).Scan(&aC.UserID)
-}
-
-//
-// The functions below are utility functions and are only used in this package.
-// There functionality has been abstracted and from the above functions for the
-// sake of simplicity and readability.
-
-// openDbConn is a wrapper for sql.Open() with logging.
-func openDbConn() *sql.DB {
-	driver := "mssql"
-	connStr := "Server=192.168.1.4:1433;Database=Auth-Db;User Id=Reader;Password=123"
-
-	dbConn, err := sql.Open(driver, connStr)
-	if err != nil {
-		log.Fatal(ConnStrFailed)
-	}
-
-	return dbConn
+	return c.Db.QueryRow(query, params...).Scan(&aC.UserID)
 }
