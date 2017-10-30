@@ -5,148 +5,136 @@ package user
 import (
 	"database/sql"
 	"errors"
-	"github.com/penutty/dba"
+	sq "github.com/Masterminds/squirrel"
 	"log"
 	"os"
 )
 
-var ConnStr = os.Getenv("DatabaseConnStr")
+var (
+	connStr = os.Getenv("DatabaseConnStr")
+	driver  = "mssql"
 
-var UserAlreadyExists = errors.New("User already exists.")
-var UserCreateFailed = errors.New("User create failed.")
-var ConnStrFailed = errors.New("Unable to connect to SQL Server.")
-var UserObjectIsEmpty = errors.New("User is empty.")
-var UniquifierIsEmpty = errors.New("User.UserID AND User.Email is empty.")
-var UserIDIsEmpty = errors.New("User.UserID AND User.Email is empty.")
-var UserEmailIsEmpty = errors.New("User.Email is empty.")
-var UserPasswordIsEmpty = errors.New("User.Password is empty.")
+	ErrorEmailParameterInvalid    = errors.New("User.email must be a valid email address.")
+	ErrorUserIDParameterInvalid   = errors.New("AuthCredentials.userID must be a valid userID.")
+	ErrorPasswordParameterInvalid = errors.New("AuthCredentials.password must be a valid password.")
+	ErrorUserRowNotCreated        = errors.New("Create failed to create one row in the user.Users table.")
+)
 
-// CreateUser checks to see if a user exists and creates it if not.
-// If the user already exists and err is returned.
-func CreateUser(u *User) (err error) {
-	if err = u.get(); err != sql.ErrNoRows {
-		return UserAlreadyExists
-	}
-
-	res, err := u.create()
+// MomentDB returns a connection to the SQLSRV Moment-Db database.
+func MomentDB() *sql.DB {
+	momentDb, err := sql.Open(driver, connStr)
 	if err != nil {
-		return UserCreateFailed
+		panic(err)
 	}
-
-	rowCount, err := res.RowsAffected()
-	if err != nil || rowCount < 1 {
-		return UserCreateFailed
-	}
-
-	return nil
+	return momentDb
 }
 
-// AuthUser checks to see if the AuthCredentials passed identify a user.
-// error will be nil on successful authentication.
-func AuthUser(aC *AuthCredentials) (err error) {
-	if err = aC.validate(); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-//
-// The methods and functions below are NOT exported.
-// They are utilized by the exported methods.
-//
-
-// User references a unique person represented by a Authentication Credentials and general information.
+// User references a unique user.Users row in the Moment-Db database.
 type User struct {
-	AuthCredentials
-	Email string
+	userID   string
+	email    string
+	password string
+	err      error
 }
 
-// Select uses a UserID OR Email to SELECT the corresponding User data
-func (u *User) get() error {
-	c := dba.OpenConn(ConnStr)
-	defer c.Db.Close()
+// NewUser is a constructor of the User struct.
+func NewUser(userID, email, password string) (u *User) {
+	u = new(User)
+	u.setUserID(userID)
+	u.setUserEmail(email)
+	u.setPassword(password)
+	return
+}
 
-	query := `SELECT UserID,
-					 Email, 
-					 Password
-			  FROM [User].[Users]`
-	var predicate string
-	if len(u.UserID) > 0 {
-		query = query + ` WHERE UserID = ?`
-		predicate = u.UserID
-	} else if len(u.Email) > 0 {
-		query = query + ` WHERE Email = ?`
-		predicate = u.Email
-	} else {
-		return UniquifierIsEmpty
+// setUserEmail sets User.email if email is valid.
+func (u *User) setUserEmail(email string) {
+	if u.err != nil {
+		return
+	}
+	if len(email) < 8 {
+		u.err = ErrorEmailParameterInvalid
+		return
+	}
+	u.email = email
+}
+
+// setUserID sets User.userID if userID is valid.
+func (u *User) setUserID(userID string) {
+	if u.err != nil {
+		return
+	}
+	if err := checkUserID(userID); err != nil {
+		u.err = err
+		return
+	}
+	u.userID = userID
+}
+
+// checkUserID returns an error if userID in invalid.
+func checkUserID(userID string) error {
+	if len(userID) < 6 {
+		return ErrorUserIDParameterInvalid
+	}
+	return nil
+}
+
+// setPassword sets User.password if password is valid.
+func (u *User) setPassword(password string) {
+	if u.err != nil {
+		return
+	}
+	if len(password) < 8 {
+		u.err = ErrorPasswordParameterInvalid
+		return
+	}
+	u.password = password
+}
+
+// Create inserts a new row into the user.Users table in db.
+func Create(u *User, db sq.BaseRunner) {
+	if u.err != nil {
+		return
 	}
 
-	return c.Db.QueryRow(query, predicate).Scan(&u.UserID, &u.Email, &u.Password)
+	insert := sq.Insert("user.Users").Columns("UserID", "Email", "Password").Values(u.userID, u.email, u.password)
+	res, err := insert.RunWith(db).Exec()
+	if err != nil {
+		log.Print(err)
+		u.err = err
+		return
+	}
+	cnt, err := res.RowsAffected()
+	if err != nil {
+		log.Print(err)
+		u.err = err
+		return
+	}
+	if cnt != 1 {
+		log.Print(ErrorUserRowNotCreated)
+		u.err = ErrorUserRowNotCreated
+	}
+	return
 }
 
-// create INSERTs a new User.UserID, User.Email, and User.Password data combination.
-func (u *User) create() (sql.Result, error) {
-	c := dba.OpenConn(ConnStr)
-	defer c.Db.Close()
+// Fetch selects a row from the user.Users table in db.
+func Fetch(userID string, db sq.BaseRunner) {
+	if checkUserID(userID) != nil {
+		return
+	}
 
-	query := `INSERT INTO [User].[Users] (UserID, Email, Password)
-			  VALUES (?, ?, ?)`
+	users := sq.Select("UserID, Email, Password").From("auth.Users")
+	user := users.Where(sq.Eq{"UserID": userID})
 
-	res, err := c.Db.Exec(query, u.UserID, u.Email, u.Password)
-	return res, err
-}
-
-// SetPassword UPDATEs a current User's User.Password
-func (u *User) setPassword() {
-	c := dba.OpenConn(ConnStr)
-	defer c.Db.Close()
-
-	query := `UPDATE [User].[Users]
-			  SET Password = ?
-			  WHERE UserID = ?`
-
-	if _, err := c.Db.Exec(query, u.Password, u.UserID); err != nil {
-		log.Fatal(err)
+	u := new(User)
+	row := user.RunWith(db).QueryRow()
+	err := row.Scan(&u.userID, &u.email, &u.password)
+	if err != nil {
+		log.Print(err)
+		u.err = err
 	}
 }
 
-// SetUserEmail UPDATEs the User.Email value associated with User.UserID
-func (u *User) setUserEmail() {
-	c := dba.OpenConn(ConnStr)
-	defer c.Db.Close()
-
-	query := `UPDATE [User].[Users] 
-			  SET Email = ?
-			  WHERE UserID = ?`
-
-	if _, err := c.Db.Exec(query, u.Email, u.UserID); err != nil {
-		log.Fatal(err)
-	}
-}
-
-// AuthCredentials are a user's unique authentication credentials.
-type AuthCredentials struct {
-	UserID   string
-	Password string
-}
-
-func (aC *AuthCredentials) validate() (err error) {
-	c := dba.OpenConn(ConnStr)
-	defer c.Db.Close()
-
-	query := `SELECT UserID
-			  FROM [user].[Users]
-			  WHERE Password = ?
-			  AND `
-	params := []interface{}{aC.Password}
-
-	if aC.UserID != "" {
-		query = query + `UserID = ?`
-		params = append(params, aC.UserID)
-	} else {
-		return UniquifierIsEmpty
-	}
-
-	return c.Db.QueryRow(query, params...).Scan(&aC.UserID)
+// Err returns the the error status of a User instance.
+func (u *User) Err() error {
+	return u.err
 }
