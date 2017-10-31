@@ -14,6 +14,12 @@ import (
 	"testutil"
 )
 
+const (
+	testuser     = "testuser"
+	testemail    = "testemail"
+	testpassword = "testpassword"
+)
+
 const testingUserID = "User_Test"
 const testingEmail = "Email_Test@Email.com"
 const testingPassword = "Password_Test"

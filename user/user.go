@@ -90,6 +90,14 @@ func (u *User) setPassword(password string) {
 	u.password = password
 }
 
+func (u *User) Password() (p string) {
+	if u.err != nil {
+		return
+	}
+	p = u.password
+	return
+}
+
 // Create inserts a new row into the user.Users table in db.
 func Create(u *User, db sq.BaseRunner) {
 	if u.err != nil {
