@@ -1,25 +1,31 @@
 package user
 
 import (
-	"database/sql"
+	"gopkg.in/DATA-DOG/go-sqlmock.v1"
 	"testing"
+)
+
+const (
+	testuser     = "testuser"
+	testemail    = "testemail@email.com"
+	testpassword = "testpassword"
 )
 
 func Test_setUserEmail(t *testing.T) {
 	u := new(User)
-	testSet(t, u, u.setUserEmail, "testuser@email.com", nil)
+	testSet(t, u, u.setUserEmail, testemail, nil)
 	testSet(t, u, u.setUserEmail, "dfsdd", ErrorEmailParameterInvalid)
 }
 
 func Test_setUserID(t *testing.T) {
 	u := new(User)
-	testSet(t, u, u.setUserID, "testUser", nil)
+	testSet(t, u, u.setUserID, testuser, nil)
 	testSet(t, u, u.setUserID, "fail", ErrorUserIDParameterInvalid)
 }
 
 func Test_setPassword(t *testing.T) {
 	u := new(User)
-	testSet(t, u, u.setPassword, "Testpassword", nil)
+	testSet(t, u, u.setPassword, testpassword, nil)
 	testSet(t, u, u.setPassword, "123", ErrorPasswordParameterInvalid)
 }
 
@@ -34,66 +40,65 @@ func testSet(t *testing.T, u *User, fn func(string), arg string, expected error)
 	u.err = nil
 	t.Run(name, func(t *testing.T) {
 		fn(arg)
-		assert(t, u.Err(), expected)
+		assertError(t, expected, u.Err())
 	})
 }
 
 func Test_NewUser(t *testing.T) {
-	u := NewUser("testuser", "testemail@email.com", "testpassword")
-	assert(t, u.Err(), nil)
+	u := NewUser(testuser, testemail, testpassword)
+	assertError(t, nil, u.Err())
 }
 
 func Test_Err(t *testing.T) {
-	u := NewUser("fail", "testemail@email.com", "testpassword")
-	assert(t, u.Err(), ErrorUserIDParameterInvalid)
-}
-
-type MockSqBaseRunner struct {
-}
-
-func (m *MockSqBaseRunner) Exec(query string, args ...interface{}) (sql.Result, error) {
-	res := MockSqlResult{
-		lastInsertID: 1,
-		rowsAffected: 1,
-	}
-	return res, nil
-}
-
-func (m *MockSqBaseRunner) Query(query string, args ...interface{}) (*sql.Rows, error) {
-
-}
-
-type MockSqlResult struct {
-	lastInsertID int64
-	rowsAffected int64
-}
-
-func (m MockSqlResult) LastInsertId() (int64, error) {
-	return m.lastInsertID, nil
-}
-
-func (m MockSqlResult) RowsAffected() (int64, error) {
-	return m.rowsAffected, nil
+	u := NewUser("fail", testemail, testpassword)
+	assertError(t, ErrorUserIDParameterInvalid, u.Err())
 }
 
 func Test_Create(t *testing.T) {
-	u := NewUser("testUser", "testemail@email.com", "testpassword")
-	db := make(MockSqBaseRunner)
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("An error occured when opening a stub database connection. ERROR: %v\n", err)
+	}
+	defer db.Close()
 
+	mock.ExpectExec(`INSERT INTO \[auth]\.\[Users] \(\[UserID],\[Email],\[Password]\) VALUES \(\?,\?,\?\)`).
+		WithArgs(testuser, testemail, testpassword).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+
+	u := NewUser(testuser, testemail, testpassword)
 	Create(u, db)
-	assert(t, u.Err(), nil)
+	assertError(t, nil, u.Err())
+
+	if err = mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("Expectations were not met. ERROR: %v\n", err)
+	}
 }
 
-//func Test_Fetch(t *testing.T) {
-//	db := new(MockSqBaseRunner)
-//
-//	u := Fetch("testuser", db)
-//	assert(t, u.Err(), nil)
-//}
+func Test_Fetch(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("An error occured when opening a stub database connection. ERROR: %v\n", err)
+	}
+	defer db.Close()
 
-func assert(t *testing.T, expected, actual error) {
+	row := sqlmock.NewRows([]string{"UserID", "Email", "Password"}).
+		AddRow(testuser, testemail, testpassword)
+
+	mock.ExpectQuery(`SELECT \[UserID], \[Email], \[Password] FROM \[auth]\.\[Users] WHERE \[UserID] = \?`).
+		WithArgs(testuser).
+		WillReturnRows(row)
+
+	u := Fetch(testuser, db)
+	assertError(t, nil, u.Err())
+
+	if err = mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("Expectations were not met. ERROR: %v\n", err)
+	}
+}
+
+func assertError(t *testing.T, expected, actual error) {
 	if actual != expected {
-		t.Fatalf("actual = %v\nexpected = %v\n", actual, expected)
+		t.Fatalf("expected = %v\nactual = %v\n", expected, actual)
 	}
 }
 

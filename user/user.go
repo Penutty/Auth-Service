@@ -96,7 +96,7 @@ func Create(u *User, db sq.BaseRunner) {
 		return
 	}
 
-	insert := sq.Insert("user.Users").Columns("UserID", "Email", "Password").Values(u.userID, u.email, u.password)
+	insert := sq.Insert("[auth].[Users]").Columns("[UserID]", "[Email]", "[Password]").Values(u.userID, u.email, u.password)
 	res, err := insert.RunWith(db).Exec()
 	if err != nil {
 		log.Print(err)
@@ -117,21 +117,22 @@ func Create(u *User, db sq.BaseRunner) {
 }
 
 // Fetch selects a row from the user.Users table in db.
-func Fetch(userID string, db sq.BaseRunner) {
+func Fetch(userID string, db sq.BaseRunner) (u *User) {
 	if checkUserID(userID) != nil {
 		return
 	}
 
-	users := sq.Select("UserID, Email, Password").From("auth.Users")
-	user := users.Where(sq.Eq{"UserID": userID})
+	users := sq.Select("[UserID], [Email], [Password]").From("[auth].[Users]")
+	user := users.Where(sq.Eq{"[UserID]": userID})
 
-	u := new(User)
+	u = new(User)
 	row := user.RunWith(db).QueryRow()
 	err := row.Scan(&u.userID, &u.email, &u.password)
 	if err != nil {
 		log.Print(err)
 		u.err = err
 	}
+	return
 }
 
 // Err returns the the error status of a User instance.
