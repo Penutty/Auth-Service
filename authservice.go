@@ -1,91 +1,163 @@
 package main
 
 import (
+	"errors"
 	"github.com/dgrijalva/jwt-go"
-	"github.com/labstack/echo"
 	"github.com/penutty/authservice/user"
-	"github.com/penutty/util"
 	"io/ioutil"
+	"log"
 	"net/http"
+	"net/url"
+	"os"
+	"strings"
 	"time"
 )
 
+var (
+	Info  *log.Logger
+	Warn  *log.Logger
+	Error *log.Logger
+
+	listenPort = ":8080"
+)
+
+func init() {
+	Logger := func(logType string) *log.Logger {
+		file := "/home/tjp/go/log/moment.txt"
+		f, err := os.OpenFile(file, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			panic(err)
+		}
+
+		l := log.New(f, strings.ToUpper(logType)+": ", log.Ldate|log.Ltime|log.Lmicroseconds|log.LUTC|log.Lshortfile)
+		return l
+	}
+
+	Info = Logger("info")
+	Warn = Logger("warn")
+	Error = Logger("error")
+}
 func main() {
-	e := echo.New()
+	a := new(app)
+	a.c = new(user.UserClient)
 
-	e.POST("/user/:user/create", createUser)
-	e.POST("/auth", authUser)
+	http.HandleFunc("/user", a.userHandler)
+	http.HandleFunc("/auth", a.authHandler)
 
-	e.Logger.Fatal(e.Start(":8080"))
+	Error.Fatal(http.ListenAndServe(listenPort, nil))
 }
 
-// createUser is a POST endpoint that accepts
-// Content-Type: [application/json; charset=UTF-8]
-// Body: {
-//			UserID: UserID
-//			Email: Email
-//			Password: Password
-//		 }
-// on success returns
-// Status: 201 - Created
-func createUser(c echo.Context) error {
-	eq, err := util.DeepEqual(c.ParamNames(), []string{"UserID", "Email", "Password"})
-	if err != nil {
-		c.Logger().Printf("Error: %v\n", err)
-		return c.NoContent(http.StatusInternalServerError)
-	}
-	if !eq {
-		c.Logger().Printf("Request Body Invalid. StatusCode: %v", http.StatusBadRequest)
-		return c.NoContent(http.StatusBadRequest)
+var (
+	ErrorMethodNotImplemented = errors.New("Request method is not implemented by API endpoint.")
+)
+
+type app struct {
+	c user.Client
+}
+
+func (a *app) userHandler(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		Error.Println(err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 	}
 
-	u := user.NewUser(c.Param("UserID"), c.Param("Email"), c.Param("Password"))
-	user.Create(u, user.MomentDB())
-
-	switch u.Err() {
-	case nil:
-		return c.NoContent(http.StatusCreated)
+	switch r.Method {
+	case "POST":
+		expected := []string{
+			"UserID",
+			"Email",
+			"Password",
+		}
+		if err := ValidateForm(r.Form, expected); err != nil {
+			Error.Println(err)
+			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		}
+		switch err := a.postUser(r); err {
+		case nil:
+			break
+		default:
+			Error.Println(err)
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		}
 	default:
-		return c.NoContent(http.StatusInternalServerError)
+		Error.Println(ErrorMethodNotImplemented)
+		http.Error(w, http.StatusText(http.StatusNotImplemented), http.StatusNotImplemented)
 	}
 }
 
-// authUser is a POST endpoint that accepts
-// Body: {
-//			UserID: UserID
-//			Password: Password
-//		 }
-// on success returns
-// Status: 200
-func authUser(c echo.Context) error {
-	eq, err := util.DeepEqual(c.ParamNames(), []string{"UserID", "Password"})
-	if !eq {
-		c.Logger().Printf("Request Body Invalid. StatusCode: %v", http.StatusBadRequest)
-		return c.NoContent(http.StatusBadRequest)
+func (a *app) postUser(r *http.Request) error {
+	u := a.c.NewUser(r.FormValue("UserID"), r.FormValue("Email"), r.FormValue("Password"))
+	a.c.Create(u, user.MomentDB())
+	return a.c.Err()
+}
+
+func (a *app) authHandler(w http.ResponseWriter, r *http.Request) {
+	if err := r.ParseForm(); err != nil {
+		Error.Println(err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 	}
 
-	u := user.Fetch(c.Param("UserID"), user.MomentDB())
-	switch u.Err() {
-	case nil:
-		break
+	switch r.Method {
+	case http.MethodPost:
+		expected := []string{
+			"UserID",
+			"Password",
+		}
+		if err := ValidateForm(r.Form, expected); err != nil {
+			Error.Println(err)
+			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		}
+		token, err := a.postAuth(r)
+		switch err {
+		case nil:
+			break
+		default:
+			Error.Println(err)
+			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		}
+
+		w.Header().Set("jwt", token)
+		w.WriteHeader(http.StatusOK)
+
 	default:
-		return c.NoContent(http.StatusInternalServerError)
+		Error.Println(ErrorMethodNotImplemented)
+		http.Error(w, http.StatusText(http.StatusNotImplemented), http.StatusNotImplemented)
+	}
+}
+
+var ErrorInvalidPass = errors.New("Form value \"Password\" is invalid.")
+
+func (a *app) postAuth(r *http.Request) (string, error) {
+	u := a.c.Fetch(r.FormValue("UserID"), user.MomentDB())
+	if err := a.c.Err(); err != nil {
+		return "", err
 	}
 
-	if u.Password() != c.Param("Password") {
-		c.Logger().Printf("Failed Login - User: %v", c.Param("UserID"))
-		return c.NoContent(http.StatusUnauthorized)
+	if u.Password() != r.FormValue("Password") {
+		return "", ErrorInvalidPass
 	}
 
-	token, err := generateJwt(c.FormValue("UserID"))
-	if err != nil {
-		c.Logger().Printf("JWT failed to be generated. ERROR: %v\n", err)
-		return c.NoContent(http.StatusInternalServerError)
+	token, err := generateJwt(r.FormValue("UserID"))
+	return token, err
+}
+
+var (
+	ErrorIncorrectNumberOfFields = errors.New("API endpoint expected more fields.")
+	ErrorFieldMissing            = errors.New("Request is missing a form field that is required by this API endpoint.")
+)
+
+func ValidateForm(f url.Values, expected []string) error {
+	if len(f) != len(expected) {
+		return ErrorIncorrectNumberOfFields
 	}
-
-	c.Response().Header().Set("jwt", token)
-	return c.NoContent(http.StatusOK)
-
+	var j int
+	for i, _ := range f {
+		if i != expected[j] {
+			return ErrorFieldMissing
+		}
+		j++
+	}
+	return nil
 }
 
 // generateJwt uses a requests UserID and a []byte secret to generate a JSON web token.

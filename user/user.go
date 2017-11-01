@@ -38,11 +38,12 @@ type User struct {
 }
 
 // NewUser is a constructor of the User struct.
-func NewUser(userID, email, password string) (u *User) {
+func (uc *UserClient) NewUser(userID, email, password string) (u *User) {
 	u = new(User)
 	u.setUserID(userID)
 	u.setUserEmail(email)
 	u.setPassword(password)
+	uc.err = u.err
 	return
 }
 
@@ -98,9 +99,36 @@ func (u *User) Password() (p string) {
 	return
 }
 
+type Client interface {
+	Newer
+	Creater
+	Fetcher
+	Err() error
+}
+type CreateFetcher interface {
+	Creater
+	Fetcher
+}
+
+type Newer interface {
+	NewUser(string, string, string) *User
+}
+
+type Creater interface {
+	Create(*User, sq.BaseRunner)
+}
+
+type Fetcher interface {
+	Fetch(string, sq.BaseRunner) *User
+}
+
+type UserClient struct {
+	err error
+}
+
 // Create inserts a new row into the user.Users table in db.
-func Create(u *User, db sq.BaseRunner) {
-	if u.err != nil {
+func (uc *UserClient) Create(u *User, db sq.BaseRunner) {
+	if uc.err != nil {
 		return
 	}
 
@@ -108,24 +136,27 @@ func Create(u *User, db sq.BaseRunner) {
 	res, err := insert.RunWith(db).Exec()
 	if err != nil {
 		log.Print(err)
-		u.err = err
+		uc.err = err
 		return
 	}
 	cnt, err := res.RowsAffected()
 	if err != nil {
 		log.Print(err)
-		u.err = err
+		uc.err = err
 		return
 	}
 	if cnt != 1 {
 		log.Print(ErrorUserRowNotCreated)
-		u.err = ErrorUserRowNotCreated
+		uc.err = ErrorUserRowNotCreated
 	}
 	return
 }
 
 // Fetch selects a row from the user.Users table in db.
-func Fetch(userID string, db sq.BaseRunner) (u *User) {
+func (uc *UserClient) Fetch(userID string, db sq.BaseRunner) (u *User) {
+	if uc.err != nil {
+		return
+	}
 	if checkUserID(userID) != nil {
 		return
 	}
@@ -138,12 +169,12 @@ func Fetch(userID string, db sq.BaseRunner) (u *User) {
 	err := row.Scan(&u.userID, &u.email, &u.password)
 	if err != nil {
 		log.Print(err)
-		u.err = err
+		uc.err = err
 	}
 	return
 }
 
 // Err returns the the error status of a User instance.
-func (u *User) Err() error {
-	return u.err
+func (uc *UserClient) Err() error {
+	return uc.err
 }
