@@ -45,12 +45,14 @@ func testSet(t *testing.T, u *User, fn func(string), arg string, expected error)
 }
 
 func Test_NewUser(t *testing.T) {
-	u := NewUser(testuser, testemail, testpassword)
+	uc := new(UserClient)
+	u := uc.NewUser(testuser, testemail, testpassword)
 	assertError(t, nil, u.Err())
 }
 
 func Test_Err(t *testing.T) {
-	u := NewUser("fail", testemail, testpassword)
+	uc := new(UserClient)
+	u := uc.NewUser("fail", testemail, testpassword)
 	assertError(t, ErrorUserIDParameterInvalid, u.Err())
 }
 
@@ -65,8 +67,9 @@ func Test_Create(t *testing.T) {
 		WithArgs(testuser, testemail, testpassword).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
-	u := NewUser(testuser, testemail, testpassword)
-	Create(u, db)
+	uc := new(UserClient)
+	u := uc.NewUser(testuser, testemail, testpassword)
+	uc.Create(u, db)
 	assertError(t, nil, u.Err())
 
 	if err = mock.ExpectationsWereMet(); err != nil {
@@ -88,7 +91,8 @@ func Test_Fetch(t *testing.T) {
 		WithArgs(testuser).
 		WillReturnRows(row)
 
-	u := Fetch(testuser, db)
+	uc := new(UserClient)
+	u := uc.Fetch(testuser, db)
 	assertError(t, nil, u.Err())
 
 	if err = mock.ExpectationsWereMet(); err != nil {

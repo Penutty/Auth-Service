@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"errors"
 	sq "github.com/Masterminds/squirrel"
+	_ "github.com/minus5/gofreetds"
 	"log"
 	"os"
 )
@@ -27,76 +28,6 @@ func MomentDB() *sql.DB {
 		panic(err)
 	}
 	return momentDb
-}
-
-// User references a unique user.Users row in the Moment-Db database.
-type User struct {
-	userID   string
-	email    string
-	password string
-	err      error
-}
-
-// NewUser is a constructor of the User struct.
-func (uc *UserClient) NewUser(userID, email, password string) (u *User) {
-	u = new(User)
-	u.setUserID(userID)
-	u.setUserEmail(email)
-	u.setPassword(password)
-	uc.err = u.err
-	return
-}
-
-// setUserEmail sets User.email if email is valid.
-func (u *User) setUserEmail(email string) {
-	if u.err != nil {
-		return
-	}
-	if len(email) < 8 {
-		u.err = ErrorEmailParameterInvalid
-		return
-	}
-	u.email = email
-}
-
-// setUserID sets User.userID if userID is valid.
-func (u *User) setUserID(userID string) {
-	if u.err != nil {
-		return
-	}
-	if err := checkUserID(userID); err != nil {
-		u.err = err
-		return
-	}
-	u.userID = userID
-}
-
-// checkUserID returns an error if userID in invalid.
-func checkUserID(userID string) error {
-	if len(userID) < 6 {
-		return ErrorUserIDParameterInvalid
-	}
-	return nil
-}
-
-// setPassword sets User.password if password is valid.
-func (u *User) setPassword(password string) {
-	if u.err != nil {
-		return
-	}
-	if len(password) < 8 {
-		u.err = ErrorPasswordParameterInvalid
-		return
-	}
-	u.password = password
-}
-
-func (u *User) Password() (p string) {
-	if u.err != nil {
-		return
-	}
-	p = u.password
-	return
 }
 
 type Client interface {
@@ -124,6 +55,17 @@ type Fetcher interface {
 
 type UserClient struct {
 	err error
+}
+
+// NewUser is a constructor of the User struct.
+func (uc *UserClient) NewUser(userID, email, password string) (u *User) {
+	log.Printf("userID = %v, email = %v, password = %v\n", userID, email, password)
+	u = new(User)
+	u.setUserID(userID)
+	u.setUserEmail(email)
+	u.setPassword(password)
+	uc.err = u.err
+	return
 }
 
 // Create inserts a new row into the user.Users table in db.
@@ -177,4 +119,69 @@ func (uc *UserClient) Fetch(userID string, db sq.BaseRunner) (u *User) {
 // Err returns the the error status of a User instance.
 func (uc *UserClient) Err() error {
 	return uc.err
+}
+
+// User references a unique user.Users row in the Moment-Db database.
+type User struct {
+	userID   string
+	email    string
+	password string
+	err      error
+}
+
+// setUserEmail sets User.email if email is valid.
+func (u *User) setUserEmail(email string) {
+	if u.err != nil {
+		return
+	}
+	if len(email) < 8 {
+		u.err = ErrorEmailParameterInvalid
+		return
+	}
+	log.Printf("email = %v\n", email)
+	u.email = email
+}
+
+// setUserID sets User.userID if userID is valid.
+func (u *User) setUserID(userID string) {
+	if u.err != nil {
+		return
+	}
+	if err := checkUserID(userID); err != nil {
+		u.err = err
+		return
+	}
+	u.userID = userID
+}
+
+// checkUserID returns an error if userID in invalid.
+func checkUserID(userID string) error {
+	if len(userID) < 6 {
+		return ErrorUserIDParameterInvalid
+	}
+	return nil
+}
+
+// setPassword sets User.password if password is valid.
+func (u *User) setPassword(password string) {
+	if u.err != nil {
+		return
+	}
+	if len(password) < 8 {
+		u.err = ErrorPasswordParameterInvalid
+		return
+	}
+	u.password = password
+}
+
+func (u *User) Password() (p string) {
+	if u.err != nil {
+		return
+	}
+	p = u.password
+	return
+}
+
+func (u *User) Err() error {
+	return u.err
 }

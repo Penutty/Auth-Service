@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/penutty/authservice/user"
@@ -56,65 +57,23 @@ type app struct {
 }
 
 func (a *app) userHandler(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseForm(); err != nil {
-		Error.Println(err)
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-	}
 
 	switch r.Method {
 	case "POST":
-		expected := []string{
-			"UserID",
-			"Email",
-			"Password",
-		}
-		if err := ValidateForm(r.Form, expected); err != nil {
-			Error.Println(err)
-			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
-		}
-		switch err := a.postUser(r); err {
-		case nil:
-			break
-		default:
-			Error.Println(err)
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		}
+		err := a.postUser(r)
+		genErrorHandler(w, err)
 	default:
 		Error.Println(ErrorMethodNotImplemented)
 		http.Error(w, http.StatusText(http.StatusNotImplemented), http.StatusNotImplemented)
 	}
 }
 
-func (a *app) postUser(r *http.Request) error {
-	u := a.c.NewUser(r.FormValue("UserID"), r.FormValue("Email"), r.FormValue("Password"))
-	a.c.Create(u, user.MomentDB())
-	return a.c.Err()
-}
-
 func (a *app) authHandler(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseForm(); err != nil {
-		Error.Println(err)
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-	}
 
 	switch r.Method {
 	case http.MethodPost:
-		expected := []string{
-			"UserID",
-			"Password",
-		}
-		if err := ValidateForm(r.Form, expected); err != nil {
-			Error.Println(err)
-			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
-		}
 		token, err := a.postAuth(r)
-		switch err {
-		case nil:
-			break
-		default:
-			Error.Println(err)
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		}
+		genErrorHandler(w, err)
 
 		w.Header().Set("jwt", token)
 		w.WriteHeader(http.StatusOK)
@@ -125,9 +84,35 @@ func (a *app) authHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (a *app) postUser(r *http.Request) error {
+	type body struct {
+		UserID   string
+		Email    string
+		Password string
+	}
+	b := new(body)
+	if err := json.NewDecoder(r.Body).Decode(b); err != nil {
+		return err
+	}
+	log.Printf("b = %v\n", b)
+
+	u := a.c.NewUser(b.UserID, b.Email, b.Password)
+	a.c.Create(u, user.MomentDB())
+	log.Println(a.c.Err())
+	return a.c.Err()
+}
+
 var ErrorInvalidPass = errors.New("Form value \"Password\" is invalid.")
 
 func (a *app) postAuth(r *http.Request) (string, error) {
+	expected := []string{
+		"UserID",
+		"Password",
+	}
+	if err := ValidateForm(r.Form, expected); err != nil {
+		return "", ErrorFieldMissing
+	}
+
 	u := a.c.Fetch(r.FormValue("UserID"), user.MomentDB())
 	if err := a.c.Err(); err != nil {
 		return "", err
@@ -139,6 +124,16 @@ func (a *app) postAuth(r *http.Request) (string, error) {
 
 	token, err := generateJwt(r.FormValue("UserID"))
 	return token, err
+}
+
+func genErrorHandler(w http.ResponseWriter, err error) {
+	switch err {
+	case nil:
+		return
+	default:
+		Error.Println(err)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+	}
 }
 
 var (
