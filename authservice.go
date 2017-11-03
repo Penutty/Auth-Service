@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	valid "github.com/asaskevich/govalidator"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/penutty/authservice/user"
 	"io/ioutil"
@@ -33,10 +34,11 @@ func init() {
 		l := log.New(f, strings.ToUpper(logType)+": ", log.Ldate|log.Ltime|log.Lmicroseconds|log.LUTC|log.Lshortfile)
 		return l
 	}
-
 	Info = Logger("info")
 	Warn = Logger("warn")
 	Error = Logger("error")
+
+	valid.SetFieldsRequiredByDefault(false)
 }
 func main() {
 	a := new(app)
@@ -86,15 +88,14 @@ func (a *app) authHandler(w http.ResponseWriter, r *http.Request) {
 
 func (a *app) postUser(r *http.Request) error {
 	type body struct {
-		UserID   string
-		Email    string
-		Password string
+		UserID   string `valid: "alpha, length(6|64)"`
+		Email    string `valid: "email, length(8|128)"`
+		Password string `valid: "alphanumeric, length(6|64)"`
 	}
 	b := new(body)
 	if err := json.NewDecoder(r.Body).Decode(b); err != nil {
 		return err
 	}
-	log.Printf("b = %v\n", b)
 
 	u := a.c.NewUser(b.UserID, b.Email, b.Password)
 	a.c.Create(u, user.MomentDB())
@@ -105,24 +106,25 @@ func (a *app) postUser(r *http.Request) error {
 var ErrorInvalidPass = errors.New("Form value \"Password\" is invalid.")
 
 func (a *app) postAuth(r *http.Request) (string, error) {
-	expected := []string{
-		"UserID",
-		"Password",
+	type body struct {
+		UserID   string `valid: alpha, length(6|64)"`
+		Password string `valid: "alphanumeric, length(6|64)"`
 	}
-	if err := ValidateForm(r.Form, expected); err != nil {
-		return "", ErrorFieldMissing
+	b := new(body)
+	if err := json.NewDecoder(r.Body).Decode(b); err != nil {
+		return "", err
 	}
 
-	u := a.c.Fetch(r.FormValue("UserID"), user.MomentDB())
+	u := a.c.Fetch(b.UserID, user.MomentDB())
 	if err := a.c.Err(); err != nil {
 		return "", err
 	}
 
-	if u.Password() != r.FormValue("Password") {
+	if u.Password() != b.Password {
 		return "", ErrorInvalidPass
 	}
 
-	token, err := generateJwt(r.FormValue("UserID"))
+	token, err := generateJwt(b.UserID)
 	return token, err
 }
 

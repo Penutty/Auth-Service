@@ -17,7 +17,7 @@ import (
 
 const (
 	testuser     = "testuser"
-	testemail    = "testemail"
+	testemail    = "testemail@email.com"
 	testpassword = "testpassword"
 )
 
@@ -50,6 +50,12 @@ type postUserTest struct {
 	err error
 }
 
+var (
+	ErrorInvalidEmail  = errors.New("User.email must be a valid email address.")
+	ErrorInvalidUserID = errors.New("User.userID must be a valid alpha.")
+	ErrorInvalidUserID = errors.New("User.password must be a valid.")
+)
+
 func Test_postUser(t *testing.T) {
 	a := new(app)
 	a.c = new(MockUserClient)
@@ -58,9 +64,45 @@ func Test_postUser(t *testing.T) {
 		&postUserTest{
 			httptest.NewRequest(http.MethodPost, "/user",
 				strings.NewReader(`{
-						"UserID": "testuser",
+						"UserID": "`+testuser+`",
+						"Email": "`+testemail+`",
+						"Password": "`+testpassword+`"
+					}`)),
+			nil,
+		},
+		&postUserTest{
+			httptest.NewRequest(http.MethodPost, "/user",
+				strings.NewReader(`{
+						"UserID": "fail",
+						"Email": "`+testemail+`",
+						"Password": "`+testpassword+`"
+					}`)),
+			nil,
+		},
+		&postUserTest{
+			httptest.NewRequest(http.MethodPost, "/user",
+				strings.NewReader(`{
+						"UserID": "`+strings.Repeat("u", 65)+`",
+						"Email": "`+testemail+`",
+						"Password": "`+testpassword+`"
+					}`)),
+			nil,
+		},
+		&postUserTest{
+			httptest.NewRequest(http.MethodPost, "/user",
+				strings.NewReader(`{
+						"UserID": "`+testuser+`",
 						"Email": "testemail",
-						"Password": "testpassword"
+						"Password": "`+testpassword+`"
+					}`)),
+			nil,
+		},
+		&postUserTest{
+			httptest.NewRequest(http.MethodPost, "/user",
+				strings.NewReader(`{
+						"UserID": "`+testuser+`",
+						"Email": "`+strings.Repeat("t", 128)+"@email.com"+`",
+						"Password": "`+testpassword+`"
 					}`)),
 			nil,
 		},
@@ -68,10 +110,19 @@ func Test_postUser(t *testing.T) {
 			httptest.NewRequest(http.MethodPost, "/user",
 				strings.NewReader(`{
 					"UserID": "testuser", 
+					"Email": "
 					"Password": "testpassword"
 				}`)),
-			ErrorFieldMissing,
+			errors.New("User.email must be a valid email address."),
 		},
+		&postUserTest{
+			httptest.NewRequest(http.MethodPost, "/user",
+				strings.NewReader(`{
+					"UserID": "testuser" 
+				}`)),
+			errors.New("User.email must be a valid email address."),
+		},
+
 		&postUserTest{
 			httptest.NewRequest(http.MethodPost, "/user", nil),
 			io.EOF,
@@ -82,8 +133,11 @@ func Test_postUser(t *testing.T) {
 		v.req.Header.Add("Content-Type", "application/json")
 
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
-			if err := a.postUser(v.req); err != v.err {
-				t.Fatalf("Expected = %v\n, Actual = %v\n", v.err, err)
+			err := a.postUser(v.req)
+			if v.err != nil {
+				assert.EqualError(t, v.err, err.Error())
+			} else {
+				assert.Nil(t, err)
 			}
 		})
 	}
