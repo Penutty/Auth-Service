@@ -87,6 +87,7 @@ func (a *app) authHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *app) postUser(r *http.Request) error {
+	//go:generate go run apiDefinitions.go -path "/user" -method "POST"
 	type body struct {
 		UserID   string `valid: "alpha, length(6|64)"`
 		Email    string `valid: "email, length(8|128)"`

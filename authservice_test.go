@@ -109,16 +109,17 @@ func Test_postUser(t *testing.T) {
 		&postUserTest{
 			httptest.NewRequest(http.MethodPost, "/user",
 				strings.NewReader(`{
-					"UserID": "testuser", 
-					"Email": "
-					"Password": "testpassword"
+					"UserID": "`+testuser+`", 
+					"Email": "`+testemail+`"
+					"Password": "fail"
 				}`)),
-			errors.New("User.email must be a valid email address."),
+			nil,
 		},
 		&postUserTest{
 			httptest.NewRequest(http.MethodPost, "/user",
 				strings.NewReader(`{
-					"UserID": "testuser" 
+					"UserID": "`+testuser+`" 
+					"Email": 
 				}`)),
 			errors.New("User.email must be a valid email address."),
 		},
