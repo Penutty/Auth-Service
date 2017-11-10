@@ -61,7 +61,7 @@ type app struct {
 func (a *app) userHandler(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
-	case "POST":
+	case http.MethodPost:
 		err := a.postUser(r)
 		genErrorHandler(w, err)
 	default:
@@ -87,11 +87,10 @@ func (a *app) authHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *app) postUser(r *http.Request) error {
-	//go:generate go run apiDefinitions.go -path "/user" -method "POST"
 	type body struct {
-		UserID   string `valid: "alpha, length(6|64)"`
-		Email    string `valid: "email, length(8|128)"`
-		Password string `valid: "alphanumeric, length(6|64)"`
+		UserID   string
+		Email    string
+		Password string
 	}
 	b := new(body)
 	if err := json.NewDecoder(r.Body).Decode(b); err != nil {
@@ -99,8 +98,11 @@ func (a *app) postUser(r *http.Request) error {
 	}
 
 	u := a.c.NewUser(b.UserID, b.Email, b.Password)
+	if err := u.Err(); err != nil {
+		return err
+	}
+
 	a.c.Create(u, user.MomentDB())
-	log.Println(a.c.Err())
 	return a.c.Err()
 }
 
@@ -108,11 +110,14 @@ var ErrorInvalidPass = errors.New("Form value \"Password\" is invalid.")
 
 func (a *app) postAuth(r *http.Request) (string, error) {
 	type body struct {
-		UserID   string `valid: alpha, length(6|64)"`
-		Password string `valid: "alphanumeric, length(6|64)"`
+		UserID   string
+		Password string
 	}
 	b := new(body)
 	if err := json.NewDecoder(r.Body).Decode(b); err != nil {
+		return "", err
+	}
+	if err := user.CheckPassword(b.Password); err != nil {
 		return "", err
 	}
 

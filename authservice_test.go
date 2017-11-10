@@ -6,7 +6,6 @@ import (
 	"github.com/dgrijalva/jwt-go"
 	"github.com/penutty/authservice/user"
 	"github.com/stretchr/testify/assert"
-	"io"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -15,10 +14,21 @@ import (
 	"testing"
 )
 
-const (
-	testuser     = "testuser"
-	testemail    = "testemail@email.com"
-	testpassword = "testpassword"
+var (
+	tUser          = "testuser"
+	tUserShort     = "user"
+	tUserLong      = strings.Repeat("user", 20)
+	tUserSpecChars = "testUser!?!??!"
+
+	tEmail              = "testemail@email.com"
+	tEmailShort         = "e@a.com"
+	tEmailLong          = tUserLong + "@email.com"
+	tEmailInvalidFormat = "notanemail"
+
+	tPassword            = "TestPassword123!"
+	tPasswordShort       = "abc123"
+	tPasswordLong        = strings.Repeat("abc123", 10)
+	tPasswordNoSpecChars = "abcd1234"
 )
 
 type MockUserClient struct {
@@ -34,7 +44,7 @@ func (m *MockUserClient) NewUser(UserID, Email, Password string) *user.User {
 
 func (m *MockUserClient) Fetch(u string, db sq.BaseRunner) *user.User {
 	uc := new(user.UserClient)
-	return uc.NewUser(u, testemail, testpassword)
+	return uc.NewUser(u, tEmail, tPassword)
 }
 
 func (m *MockUserClient) Create(u *user.User, db sq.BaseRunner) {
@@ -45,97 +55,46 @@ func (m *MockUserClient) Err() error {
 	return m.err
 }
 
-type postUserTest struct {
+type RequestErrPair struct {
 	req *http.Request
 	err error
 }
-
-var (
-	ErrorInvalidEmail  = errors.New("User.email must be a valid email address.")
-	ErrorInvalidUserID = errors.New("User.userID must be a valid alpha.")
-	ErrorInvalidUserID = errors.New("User.password must be a valid.")
-)
 
 func Test_postUser(t *testing.T) {
 	a := new(app)
 	a.c = new(MockUserClient)
 
-	tests := []*postUserTest{
-		&postUserTest{
+	newpair := func(user, email, pass string, err error) *RequestErrPair {
+		return &RequestErrPair{
 			httptest.NewRequest(http.MethodPost, "/user",
 				strings.NewReader(`{
-						"UserID": "`+testuser+`",
-						"Email": "`+testemail+`",
-						"Password": "`+testpassword+`"
+						"UserID": "`+user+`",
+						"Email": "`+email+`",
+						"Password": "`+pass+`"
 					}`)),
-			nil,
-		},
-		&postUserTest{
-			httptest.NewRequest(http.MethodPost, "/user",
-				strings.NewReader(`{
-						"UserID": "fail",
-						"Email": "`+testemail+`",
-						"Password": "`+testpassword+`"
-					}`)),
-			nil,
-		},
-		&postUserTest{
-			httptest.NewRequest(http.MethodPost, "/user",
-				strings.NewReader(`{
-						"UserID": "`+strings.Repeat("u", 65)+`",
-						"Email": "`+testemail+`",
-						"Password": "`+testpassword+`"
-					}`)),
-			nil,
-		},
-		&postUserTest{
-			httptest.NewRequest(http.MethodPost, "/user",
-				strings.NewReader(`{
-						"UserID": "`+testuser+`",
-						"Email": "testemail",
-						"Password": "`+testpassword+`"
-					}`)),
-			nil,
-		},
-		&postUserTest{
-			httptest.NewRequest(http.MethodPost, "/user",
-				strings.NewReader(`{
-						"UserID": "`+testuser+`",
-						"Email": "`+strings.Repeat("t", 128)+"@email.com"+`",
-						"Password": "`+testpassword+`"
-					}`)),
-			nil,
-		},
-		&postUserTest{
-			httptest.NewRequest(http.MethodPost, "/user",
-				strings.NewReader(`{
-					"UserID": "`+testuser+`", 
-					"Email": "`+testemail+`"
-					"Password": "fail"
-				}`)),
-			nil,
-		},
-		&postUserTest{
-			httptest.NewRequest(http.MethodPost, "/user",
-				strings.NewReader(`{
-					"UserID": "`+testuser+`" 
-					"Email": 
-				}`)),
-			errors.New("User.email must be a valid email address."),
-		},
-
-		&postUserTest{
-			httptest.NewRequest(http.MethodPost, "/user", nil),
-			io.EOF,
-		},
+			err,
+		}
 	}
 
-	for i, v := range tests {
+	testVars := []*RequestErrPair{
+		newpair(tUser, tEmail, tPassword, nil),
+		newpair(tUserShort, tEmail, tPassword, user.ErrorUserIDShort),
+		newpair(tUserLong, tEmail, tPassword, user.ErrorUserIDLong),
+		newpair(tUserSpecChars, tEmail, tPassword, user.ErrorUserIDInvalidRunes),
+		newpair(tUser, tEmailShort, tPassword, user.ErrorEmailShort),
+		newpair(tUser, tEmailLong, tPassword, user.ErrorEmailLong),
+		newpair(tUser, tEmailInvalidFormat, tPassword, nil),
+		newpair(tUser, tEmail, tPasswordShort, user.ErrorPasswordShort),
+		newpair(tUser, tEmail, tPasswordLong, user.ErrorPasswordLong),
+		newpair(tUser, tEmail, tPasswordNoSpecChars, user.ErrorPasswordSpecChars),
+	}
+
+	for i, v := range testVars {
 		v.req.Header.Add("Content-Type", "application/json")
 
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			err := a.postUser(v.req)
-			if v.err != nil {
+			if err != nil {
 				assert.EqualError(t, v.err, err.Error())
 			} else {
 				assert.Nil(t, err)

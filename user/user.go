@@ -8,7 +8,9 @@ import (
 	sq "github.com/Masterminds/squirrel"
 	_ "github.com/minus5/gofreetds"
 	"log"
+	"net/mail"
 	"os"
+	"regexp"
 )
 
 var (
@@ -59,7 +61,6 @@ type UserClient struct {
 
 // NewUser is a constructor of the User struct.
 func (uc *UserClient) NewUser(userID, email, password string) (u *User) {
-	log.Printf("userID = %v, email = %v, password = %v\n", userID, email, password)
 	u = new(User)
 	u.setUserID(userID)
 	u.setUserEmail(email)
@@ -99,7 +100,7 @@ func (uc *UserClient) Fetch(userID string, db sq.BaseRunner) (u *User) {
 	if uc.err != nil {
 		return
 	}
-	if checkUserID(userID) != nil {
+	if CheckUserID(userID) != nil {
 		return
 	}
 
@@ -134,12 +135,33 @@ func (u *User) setUserEmail(email string) {
 	if u.err != nil {
 		return
 	}
-	if len(email) < 8 {
-		u.err = ErrorEmailParameterInvalid
+	if err := CheckEmail(email); err != nil {
+		u.err = err
 		return
 	}
-	log.Printf("email = %v\n", email)
 	u.email = email
+}
+
+var (
+	EmailMinLength = 8
+	EmailMaxLength = 128
+
+	ErrorEmailShort = errors.New("Email too short.")
+	ErrorEmailLong  = errors.New("Email too long.")
+)
+
+// CheckEmail returns an error if email is invalid.
+func CheckEmail(email string) error {
+	switch {
+	case len(email) < EmailMinLength:
+		return ErrorEmailShort
+	case len(email) > EmailMaxLength:
+		return ErrorEmailLong
+	}
+	if _, err := mail.ParseAddress(email); err != nil {
+		return err
+	}
+	return nil
 }
 
 // setUserID sets User.userID if userID is valid.
@@ -147,19 +169,38 @@ func (u *User) setUserID(userID string) {
 	if u.err != nil {
 		return
 	}
-	if err := checkUserID(userID); err != nil {
+	if err := CheckUserID(userID); err != nil {
 		u.err = err
 		return
 	}
 	u.userID = userID
 }
 
-// checkUserID returns an error if userID in invalid.
-func checkUserID(userID string) error {
-	if len(userID) < 6 {
-		return ErrorUserIDParameterInvalid
+var (
+	UserIDMinLength = 8
+	UserIDMaxLength = 64
+
+	ErrorUserIDShort        = errors.New("UserID too short.")
+	ErrorUserIDLong         = errors.New("UserID too long.")
+	ErrorUserIDInvalidRunes = errors.New("UserID may only consist of numbers and letters.")
+)
+
+// CheckUserID returns an error if userID is invalid.
+func CheckUserID(userID string) error {
+	r, err := regexp.Compile(`^[a-zA-Z0-9]+$`)
+	if err != nil {
+		return err
 	}
-	return nil
+	switch {
+	case len(userID) < UserIDMinLength:
+		return ErrorUserIDShort
+	case len(userID) > UserIDMaxLength:
+		return ErrorUserIDLong
+	case !r.MatchString(userID):
+		return ErrorUserIDInvalidRunes
+	default:
+		return nil
+	}
 }
 
 // setPassword sets User.password if password is valid.
@@ -167,11 +208,63 @@ func (u *User) setPassword(password string) {
 	if u.err != nil {
 		return
 	}
-	if len(password) < 8 {
-		u.err = ErrorPasswordParameterInvalid
+	if err := CheckPassword(password); err != nil {
+		u.err = err
 		return
 	}
 	u.password = password
+}
+
+var (
+	PasswordMinLength = 8
+	PasswordMaxLength = 64
+
+	ErrorPasswordShort     = errors.New("Password too short.")
+	ErrorPasswordLong      = errors.New("Password too long.")
+	ErrorPasswordLowerCase = errors.New("Password does not contain a lowercase letter.")
+	ErrorPasswordUpperCase = errors.New("Password does not contain an uppercase letter.")
+	ErrorPasswordNumber    = errors.New("Password does not contain a number.")
+	ErrorPasswordSpecChars = errors.New("Password does not contain a special character.")
+)
+
+// CheckPassword returns an error if password is invalid.
+func CheckPassword(password string) error {
+	var (
+		err error
+		ll  *regexp.Regexp
+		ul  *regexp.Regexp
+		num *regexp.Regexp
+		sc  *regexp.Regexp
+	)
+
+	if ll, err = regexp.Compile(`[a-z]+`); err != nil {
+		return err
+	}
+	if ul, err = regexp.Compile(`[A-Z]+`); err != nil {
+		return err
+	}
+	if num, err = regexp.Compile(`[0-9]+`); err != nil {
+		return err
+	}
+	if sc, err = regexp.Compile(`[^a-zA-Z0-9]+`); err != nil {
+		return err
+	}
+
+	switch {
+	case len(password) < PasswordMinLength:
+		return ErrorPasswordShort
+	case len(password) > PasswordMaxLength:
+		return ErrorPasswordLong
+	case !ll.MatchString(password):
+		return ErrorPasswordLowerCase
+	case !ul.MatchString(password):
+		return ErrorPasswordUpperCase
+	case !num.MatchString(password):
+		return ErrorPasswordNumber
+	case !sc.MatchString(password):
+		return ErrorPasswordSpecChars
+	}
+	return nil
 }
 
 func (u *User) Password() (p string) {
