@@ -15,6 +15,11 @@ import (
 	"time"
 )
 
+const (
+	UserEndpoint = "/user"
+	AuthEndpoint = "/auth"
+)
+
 var (
 	Info  *log.Logger
 	Warn  *log.Logger
@@ -44,8 +49,8 @@ func main() {
 	a := new(app)
 	a.c = new(user.UserClient)
 
-	http.HandleFunc("/user", a.userHandler)
-	http.HandleFunc("/auth", a.authHandler)
+	http.HandleFunc(UserEndpoint, a.userHandler)
+	http.HandleFunc(AuthEndpoint, a.authHandler)
 
 	Error.Fatal(http.ListenAndServe(listenPort, nil))
 }
@@ -64,6 +69,7 @@ func (a *app) userHandler(w http.ResponseWriter, r *http.Request) {
 	case http.MethodPost:
 		err := a.postUser(r)
 		genErrorHandler(w, err)
+		w.WriteHeader(http.StatusCreated)
 	default:
 		Error.Println(ErrorMethodNotImplemented)
 		http.Error(w, http.StatusText(http.StatusNotImplemented), http.StatusNotImplemented)
@@ -78,8 +84,6 @@ func (a *app) authHandler(w http.ResponseWriter, r *http.Request) {
 		genErrorHandler(w, err)
 
 		w.Header().Set("jwt", token)
-		w.WriteHeader(http.StatusOK)
-
 	default:
 		Error.Println(ErrorMethodNotImplemented)
 		http.Error(w, http.StatusText(http.StatusNotImplemented), http.StatusNotImplemented)

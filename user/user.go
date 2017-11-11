@@ -143,7 +143,7 @@ func (u *User) setUserEmail(email string) {
 }
 
 var (
-	EmailMinLength = 8
+	EmailMinLength = 10
 	EmailMaxLength = 128
 
 	ErrorEmailShort = errors.New("Email too short.")
