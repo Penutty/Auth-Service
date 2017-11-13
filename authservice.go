@@ -9,7 +9,6 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -64,11 +63,12 @@ type app struct {
 }
 
 func (a *app) userHandler(w http.ResponseWriter, r *http.Request) {
-
 	switch r.Method {
 	case http.MethodPost:
-		err := a.postUser(r)
-		genErrorHandler(w, err)
+		if err := a.postUser(r); err != nil {
+			genErrorHandler(w, err)
+			return
+		}
 		w.WriteHeader(http.StatusCreated)
 	default:
 		Error.Println(ErrorMethodNotImplemented)
@@ -77,16 +77,25 @@ func (a *app) userHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *app) authHandler(w http.ResponseWriter, r *http.Request) {
-
 	switch r.Method {
 	case http.MethodPost:
 		token, err := a.postAuth(r)
-		genErrorHandler(w, err)
-
+		if err != nil {
+			genErrorHandler(w, err)
+			return
+		}
 		w.Header().Set("jwt", token)
 	default:
 		Error.Println(ErrorMethodNotImplemented)
 		http.Error(w, http.StatusText(http.StatusNotImplemented), http.StatusNotImplemented)
+	}
+}
+
+func genErrorHandler(w http.ResponseWriter, err error) {
+	switch err {
+	default:
+		Error.Println(err)
+		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 	}
 }
 
@@ -102,7 +111,8 @@ func (a *app) postUser(r *http.Request) error {
 	}
 
 	u := a.c.NewUser(b.UserID, b.Email, b.Password)
-	if err := u.Err(); err != nil {
+
+	if err := a.c.Err(); err != nil {
 		return err
 	}
 
@@ -136,35 +146,6 @@ func (a *app) postAuth(r *http.Request) (string, error) {
 
 	token, err := generateJwt(b.UserID)
 	return token, err
-}
-
-func genErrorHandler(w http.ResponseWriter, err error) {
-	switch err {
-	case nil:
-		return
-	default:
-		Error.Println(err)
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-	}
-}
-
-var (
-	ErrorIncorrectNumberOfFields = errors.New("API endpoint expected more fields.")
-	ErrorFieldMissing            = errors.New("Request is missing a form field that is required by this API endpoint.")
-)
-
-func ValidateForm(f url.Values, expected []string) error {
-	if len(f) != len(expected) {
-		return ErrorIncorrectNumberOfFields
-	}
-	var j int
-	for i, _ := range f {
-		if i != expected[j] {
-			return ErrorFieldMissing
-		}
-		j++
-	}
-	return nil
 }
 
 // generateJwt uses a requests UserID and a []byte secret to generate a JSON web token.

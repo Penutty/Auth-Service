@@ -19,17 +19,14 @@ var (
 	tUser     = "testuser"
 	tEmail    = "<testemail@email.com>"
 	tPassword = "TestPassword123!"
-
-	tUEP = fmt.Sprintf("{\"UserID\": \"%s\", \"Email\": \"%s\", \"Password\": \"%s\"}", tUser, tEmail, tPassword)
-	tUP  = fmt.Sprintf("{\"UserID\": \"%s\", \"Password\": \"%s\"}", tUser, tPassword)
 )
 
-func defUserPostReq() *http.Request {
-	return httptest.NewRequest(http.MethodPost, UserEndpoint, strings.NewReader(tUEP))
+func NewAuthBody(u, p string) *strings.Reader {
+	return strings.NewReader(fmt.Sprintf("{\"UserID\": \"%s\", \"Password\": \"%s\"}", u, p))
 }
 
-func defAuthPostReq() *http.Request {
-	return httptest.NewRequest(http.MethodPost, AuthEndpoint, strings.NewReader(tUP))
+func NewUserBody(u, e, p string) *strings.Reader {
+	return strings.NewReader(fmt.Sprintf("{\"UserID\": \"%s\", \"Email\": \"%s\", \"Password\": \"%s\"}", u, e, p))
 }
 
 type MockUserClient struct {
@@ -37,6 +34,7 @@ type MockUserClient struct {
 }
 
 func (m *MockUserClient) NewUser(UserID, Email, Password string) *user.User {
+
 	uc := new(user.UserClient)
 	u := uc.NewUser(UserID, Email, Password)
 	m.err = uc.Err()
@@ -66,11 +64,14 @@ func Test_userHandler(t *testing.T) {
 	a.c = new(MockUserClient)
 
 	testVars := []*RequestCodePair{
-		&RequestCodePair{defUserPostReq(), http.StatusCreated},
+		&RequestCodePair{httptest.NewRequest(http.MethodPost, UserEndpoint, NewUserBody(tUser, tEmail, tPassword)), http.StatusCreated},
+		&RequestCodePair{httptest.NewRequest(http.MethodPost, UserEndpoint, strings.NewReader("")), http.StatusBadRequest},
+		&RequestCodePair{httptest.NewRequest(http.MethodPost, UserEndpoint, NewUserBody("fail", tEmail, tPassword)), http.StatusBadRequest},
+		&RequestCodePair{httptest.NewRequest("METHOD_DNE", UserEndpoint, NewUserBody(tUser, tEmail, tPassword)), http.StatusNotImplemented},
 	}
-	rec := httptest.NewRecorder()
 
 	for i, v := range testVars {
+		rec := httptest.NewRecorder()
 		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			a.userHandler(rec, v.req)
 			assert.Equal(t, v.code, rec.Code)
@@ -79,7 +80,24 @@ func Test_userHandler(t *testing.T) {
 }
 
 func Test_authHandler(t *testing.T) {
+	a := new(app)
+	a.c = new(MockUserClient)
 
+	testVars := []*RequestCodePair{
+		&RequestCodePair{httptest.NewRequest(http.MethodPost, AuthEndpoint, NewAuthBody(tUser, tPassword)), http.StatusOK},
+		&RequestCodePair{httptest.NewRequest(http.MethodPost, AuthEndpoint, strings.NewReader("")), http.StatusBadRequest},
+		&RequestCodePair{httptest.NewRequest(http.MethodPost, AuthEndpoint, NewAuthBody("fail", tPassword)), http.StatusBadRequest},
+		&RequestCodePair{httptest.NewRequest(http.MethodPost, AuthEndpoint, NewAuthBody(tUser, "fail")), http.StatusBadRequest},
+		&RequestCodePair{httptest.NewRequest("METHOD_DNE", AuthEndpoint, NewAuthBody(tUser, tPassword)), http.StatusNotImplemented},
+	}
+
+	for i, v := range testVars {
+		rec := httptest.NewRecorder()
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			a.authHandler(rec, v.req)
+			assert.Equal(t, v.code, rec.Code)
+		})
+	}
 }
 
 type RequestErrPair struct {
@@ -92,7 +110,7 @@ func Test_postUser(t *testing.T) {
 	a.c = new(MockUserClient)
 
 	testVars := []*RequestErrPair{
-		&RequestErrPair{defUserPostReq(), nil},
+		&RequestErrPair{httptest.NewRequest(http.MethodPost, UserEndpoint, NewUserBody(tUser, tEmail, tPassword)), nil},
 	}
 
 	for i, v := range testVars {
@@ -114,7 +132,7 @@ func Test_postAuth(t *testing.T) {
 	a.c = new(MockUserClient)
 
 	testVars := []*RequestErrPair{
-		&RequestErrPair{defAuthPostReq(), nil},
+		&RequestErrPair{httptest.NewRequest(http.MethodPost, AuthEndpoint, NewAuthBody(tUser, tPassword)), nil},
 	}
 
 	for i, v := range testVars {
