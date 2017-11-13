@@ -131,9 +131,6 @@ func (a *app) postAuth(r *http.Request) (string, error) {
 	if err := json.NewDecoder(r.Body).Decode(b); err != nil {
 		return "", err
 	}
-	if err := user.CheckPassword(b.Password); err != nil {
-		return "", err
-	}
 
 	u := a.c.Fetch(b.UserID, user.MomentDB())
 	if err := a.c.Err(); err != nil {

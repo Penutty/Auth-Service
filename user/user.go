@@ -100,7 +100,8 @@ func (uc *UserClient) Fetch(userID string, db sq.BaseRunner) (u *User) {
 	if uc.err != nil {
 		return
 	}
-	if CheckUserID(userID) != nil {
+	if err := CheckUserID(userID); err != nil {
+		uc.err = err
 		return
 	}
 
