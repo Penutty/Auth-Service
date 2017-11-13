@@ -1,22 +1,20 @@
 # Use an official Python runtime as a parent image
-FROM golang
+FROM golang:alpine
 
-RUN apt-get update && apt-get install -y \
-    libsybdb5 \
+RUN apk add --update \
+    git \
     freetds-dev \
-    freetds-common
+    gcc
 
 # Install any needed package dependencies 
 RUN go get -u github.com/labstack/echo
 RUN go get -u github.com/dgrijalva/jwt-go
 RUN go get -u github.com/minus5/gofreetds
-
+RUN go get -u github.com/Masterminds/squirrel
 
 # Copy go packages into container.
 COPY . /go/src/github.com/penutty/authservice
-RUN git clone https://github.com/penutty/dba /go/src/github.com/penutty/dba
-RUN git clone https://github.com/penutty/util /go/src/github.com/penutty/util
-
+RUN ls /go/
 RUN ls /go/src/github.com/penutty
 # Install go packages
 RUN go install github.com/penutty/authservice
@@ -30,5 +28,3 @@ EXPOSE 8080
 # Define environment variable
 ENV DatabaseConnStr="server=192.168.1.2:1433;database=moment-db;user id=reader;password=123"
 
-# Run app.py when the container launches
-CMD "authservice"

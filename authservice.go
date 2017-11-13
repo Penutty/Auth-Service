@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"errors"
-	valid "github.com/asaskevich/govalidator"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/penutty/authservice/user"
 	"io/ioutil"
@@ -20,30 +19,25 @@ const (
 )
 
 var (
-	Info  *log.Logger
-	Warn  *log.Logger
-	Error *log.Logger
+	Info  logType = "INFO"
+	Warn  logType = "WARN"
+	Error logType = "ERROR"
 
 	listenPort = ":8080"
 )
 
-func init() {
-	Logger := func(logType string) *log.Logger {
-		file := "/home/tjp/go/log/moment.txt"
-		f, err := os.OpenFile(file, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-		if err != nil {
-			panic(err)
-		}
+type logType string
 
-		l := log.New(f, strings.ToUpper(logType)+": ", log.Ldate|log.Ltime|log.Lmicroseconds|log.LUTC|log.Lshortfile)
-		return l
+func logger(t logType) *log.Logger {
+	gopath := os.Getenv("GOPATH")
+	f, err := os.OpenFile(gopath+"/log/authservice.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		panic(err)
 	}
-	Info = Logger("info")
-	Warn = Logger("warn")
-	Error = Logger("error")
 
-	valid.SetFieldsRequiredByDefault(false)
+	return log.New(f, strings.ToUpper(string(t))+": ", log.Ldate|log.Ltime|log.Lmicroseconds|log.LUTC|log.Lshortfile)
 }
+
 func main() {
 	a := new(app)
 	a.c = new(user.UserClient)
@@ -51,7 +45,7 @@ func main() {
 	http.HandleFunc(UserEndpoint, a.userHandler)
 	http.HandleFunc(AuthEndpoint, a.authHandler)
 
-	Error.Fatal(http.ListenAndServe(listenPort, nil))
+	logger(Error).Fatal(http.ListenAndServe(listenPort, nil))
 }
 
 var (
@@ -71,7 +65,7 @@ func (a *app) userHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		w.WriteHeader(http.StatusCreated)
 	default:
-		Error.Println(ErrorMethodNotImplemented)
+		logger(Error).Println(ErrorMethodNotImplemented)
 		http.Error(w, http.StatusText(http.StatusNotImplemented), http.StatusNotImplemented)
 	}
 }
@@ -86,7 +80,7 @@ func (a *app) authHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		w.Header().Set("jwt", token)
 	default:
-		Error.Println(ErrorMethodNotImplemented)
+		logger(Error).Println(ErrorMethodNotImplemented)
 		http.Error(w, http.StatusText(http.StatusNotImplemented), http.StatusNotImplemented)
 	}
 }
@@ -94,7 +88,7 @@ func (a *app) authHandler(w http.ResponseWriter, r *http.Request) {
 func genErrorHandler(w http.ResponseWriter, err error) {
 	switch err {
 	default:
-		Error.Println(err)
+		logger(Error).Println(err)
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 	}
 }
