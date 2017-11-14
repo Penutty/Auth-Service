@@ -1,0 +1,17 @@
+language: go
+addons:
+    apt:
+        packages:
+            - git
+            - freetds-dev
+            - g++
+go:
+    - master
+
+before_install:
+    - go get -u github.com/labstack/echo
+    - go get -u github.com/dgrijalva/jwt-go
+    - go get -u github.com/minus5/gofreetds
+    - go get -u github.com/Masterminds/squirrel
+
+

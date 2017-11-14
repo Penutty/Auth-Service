@@ -4,7 +4,7 @@ FROM golang:alpine
 RUN apk add --update \
     git \
     freetds-dev \
-    gcc
+    g++
 
 # Install any needed package dependencies 
 RUN go get -u github.com/labstack/echo
@@ -14,8 +14,10 @@ RUN go get -u github.com/Masterminds/squirrel
 
 # Copy go packages into container.
 COPY . /go/src/github.com/penutty/authservice
-RUN ls /go/
-RUN ls /go/src/github.com/penutty
+
+# Create log folder
+RUN mkdir /go/log 
+
 # Install go packages
 RUN go install github.com/penutty/authservice
 
