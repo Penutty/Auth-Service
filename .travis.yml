@@ -13,6 +13,4 @@ before_install:
     - go get -v github.com/dgrijalva/jwt-go
     - go get -v github.com/minus5/gofreetds
     - go get -v github.com/Masterminds/squirrel
-    - cp .netrc ~
-    - chmod 600 .netrc
 
