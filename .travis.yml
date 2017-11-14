@@ -9,9 +9,9 @@ go:
     - master
 
 before_install:
-    - go get -u github.com/labstack/echo
-    - go get -u github.com/dgrijalva/jwt-go
-    - go get -u github.com/minus5/gofreetds
-    - go get -u github.com/Masterminds/squirrel
+    - go get -v github.com/labstack/echo
+    - go get -v github.com/dgrijalva/jwt-go
+    - go get -v github.com/minus5/gofreetds
+    - go get -v github.com/Masterminds/squirrel
 
 
