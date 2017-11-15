@@ -2,8 +2,6 @@ sudo: required
 
 language: go
 
-env:
-    - DOCKER_TAG=
 services:
     - docker
 addons:
