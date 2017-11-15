@@ -20,6 +20,7 @@ before_install:
     - mkdir $GOPATH/log
 
 after_success:
-    - docker build -t penutty/authservice .
+    - docker build -t authservice .
+    - docker tag authservice "penutty/authservice:$TRAVIS_COMMIT"
     - docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD"
-    - docker push penutty/authservice
+    - docker push "penutty/authservice:$TRAVIS_COMMIT"
