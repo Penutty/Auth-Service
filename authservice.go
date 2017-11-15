@@ -24,13 +24,13 @@ var (
 	Error logType = "ERROR"
 
 	listenPort = ":8080"
+	GOPATH     = os.Getenv("GOPATH")
 )
 
 type logType string
 
 func logger(t logType) *log.Logger {
-	gopath := os.Getenv("GOPATH")
-	f, err := os.OpenFile(gopath+"/log/authservice.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(GOPATH+"/log/authservice.txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		panic(err)
 	}
@@ -142,7 +142,7 @@ func (a *app) postAuth(r *http.Request) (string, error) {
 // generateJwt uses a requests UserID and a []byte secret to generate a JSON web token.
 func generateJwt(UserID string) (string, error) {
 
-	p, err := ioutil.ReadFile("/home/tjp/.ssh/jwt_private.pem")
+	p, err := ioutil.ReadFile(GOPATH + "/src/github.com/penutty/authservice/.ssh/jwt_private.pem")
 	if err != nil {
 		return "", err
 	}

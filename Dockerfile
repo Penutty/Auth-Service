@@ -7,7 +7,6 @@ RUN apk add --update \
     g++
 
 # Install any needed package dependencies 
-RUN go get -u github.com/labstack/echo
 RUN go get -u github.com/dgrijalva/jwt-go
 RUN go get -u github.com/minus5/gofreetds
 RUN go get -u github.com/Masterminds/squirrel
