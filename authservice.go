@@ -3,8 +3,8 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"github.com/Penutty/authservice/user"
 	"github.com/dgrijalva/jwt-go"
-	"github.com/penutty/authservice/user"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -142,7 +142,7 @@ func (a *app) postAuth(r *http.Request) (string, error) {
 // generateJwt uses a requests UserID and a []byte secret to generate a JSON web token.
 func generateJwt(UserID string) (string, error) {
 
-	p, err := ioutil.ReadFile(GOPATH + "/src/github.com/penutty/authservice/.ssh/jwt_private.pem")
+	p, err := ioutil.ReadFile(GOPATH + "/src/github.com/Penutty/authservice/.ssh/jwt_private.pem")
 	if err != nil {
 		return "", err
 	}
