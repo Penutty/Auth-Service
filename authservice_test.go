@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 	sq "github.com/Masterminds/squirrel"
-	"github.com/Penutty/authservice/user"
 	"github.com/dgrijalva/jwt-go"
+	"github.com/penutty/authservice/user"
 	"github.com/stretchr/testify/assert"
 	"io/ioutil"
 	"net/http"
@@ -161,7 +161,7 @@ func Test_generateJwt_pass(t *testing.T) {
 			return nil, errors.New("jwt.Token[\"alg\") = %v instead of RS256")
 		}
 
-		p, err := ioutil.ReadFile(os.Getenv("GOPATH") + "/src/github.com/Penutty/authservice/.ssh/jwt_public.pem")
+		p, err := ioutil.ReadFile(os.Getenv("GOPATH") + "/src/github.com/penutty/authservice/.ssh/jwt_public.pem")
 		if err != nil {
 			return nil, err
 		}

@@ -12,13 +12,13 @@ RUN go get -u github.com/minus5/gofreetds
 RUN go get -u github.com/Masterminds/squirrel
 
 # Copy go packages into container.
-COPY . /go/src/github.com/Penutty/authservice
+COPY . /go/src/github.com/penutty/authservice
 
 # Create log folder
 RUN mkdir /go/log 
 
 # Install go packages
-RUN go install github.com/Penutty/authservice
+RUN go install github.com/penutty/authservice
 
 # Run the outyet command by default when the container starts.
 ENTRYPOINT $GOPATH/bin/authservice
