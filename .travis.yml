@@ -1,4 +1,12 @@
+sudo: required
+
 language: go
+
+env:
+    - DOCKER_TAG=penutty/authservice:0."$TRAVIS_COMMIT"
+
+services:
+    - docker
 addons:
     apt:
         packages:
@@ -13,3 +21,9 @@ before_install:
     - go get -v github.com/minus5/gofreetds
     - go get -v github.com/Masterminds/squirrel
     - mkdir $GOPATH/log
+
+after_success:
+    - docker build -t "$DOCKER_TAG" .
+    - docker tag authservice Penutty/authservice 
+    - docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD"
+    - docker push "$DOCKER_TAG"
