@@ -24,7 +24,7 @@ var (
 )
 
 // MomentDB returns a connection to the SQLSRV Moment-Db database.
-func MomentDB() *sql.DB {
+func AuthDB() *sql.DB {
 	momentDb, err := sql.Open(driver, connStr)
 	if err != nil {
 		panic(err)

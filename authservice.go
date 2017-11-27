@@ -110,7 +110,7 @@ func (a *app) postUser(r *http.Request) error {
 		return err
 	}
 
-	a.c.Create(u, user.MomentDB())
+	a.c.Create(u, user.AuthDB())
 	return a.c.Err()
 }
 
@@ -126,7 +126,7 @@ func (a *app) postAuth(r *http.Request) (string, error) {
 		return "", err
 	}
 
-	u := a.c.Fetch(b.UserID, user.MomentDB())
+	u := a.c.Fetch(b.UserID, user.AuthDB())
 	if err := a.c.Err(); err != nil {
 		return "", err
 	}

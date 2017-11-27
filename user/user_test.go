@@ -27,8 +27,8 @@ var (
 	tPasswordNoSpecChars = "Abcd1234"
 )
 
-func Test_MomentDB(t *testing.T) {
-	db := MomentDB()
+func Test_AuthDB(t *testing.T) {
+	db := AuthDB()
 	assert.IsType(t, new(sql.DB), db)
 }
 
