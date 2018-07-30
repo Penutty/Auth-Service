@@ -27,5 +27,4 @@ ENTRYPOINT $GOPATH/bin/authservice
 EXPOSE 8080
 
 # Define environment variable
-ENV DatabaseConnStr="server=192.168.1.2:1433;database=moment-db;user id=reader;password=123"
 
